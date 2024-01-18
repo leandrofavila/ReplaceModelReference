@@ -19,10 +19,10 @@ def get_part_number(files):
         PropertySet = oPropSets.Item("Design Tracking Properties")
         part_number_df.append((PropertySet.Item(2).Value, path))
 
-
-    part_number_df = pd.DataFrame(part_number_df, columns=['Descrição', 'Caminho'])
-    get_old_part(part_number_df['Descrição'].tolist())
-    df = part_number_df
+    part_number_df = pd.DataFrame(part_number_df, columns=['Part Number', 'Caminho'])
+    old_parts = get_old_part(part_number_df['Part Number'].tolist())
+    print(old_parts)
+    part_number_df['old_part'] = part_number_df['Part Number'].map(old_parts)
     return part_number_df
 
 
@@ -37,17 +37,19 @@ def get_path_selected_file(file):
 
 
 def get_old_part(file):
-    df = get_part_number(file)
+    print(file)
     old_part = {}
-    for idx, val in df.iterrows():
-        old_pt = val['part_number'][-6:]. replace('.', '')
-        print(old_pt)
-
+    for val in file:
+        val = ''.join(cd for cd in val if cd.isdigit())
+        print(val)
+        old_pt = val[-6:]. replace('.', '')
+        old_part[val] = old_pt
+    return old_part
 
 
 @app.route('/', methods=['GET', 'POST'])
 def process_file():
-    try:
+    #try:
         if 'file' not in request.files:
             return render_template('index.html', table_html="", error="")
         files = request.files.getlist('file')
@@ -58,8 +60,8 @@ def process_file():
         table_html = df.to_html(classes='table table-striped', justify='left', escape=False)
         return render_template('index.html', table_html=table_html, error="")
 
-    except Exception as e:
-        return render_template('index.html', table_html="", error=str(e))
+    #except Exception as e:
+    #    return render_template('index.html', table_html="", error=str(e))
 
 
 if __name__ == '__main__':
