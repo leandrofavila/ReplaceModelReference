@@ -79,17 +79,17 @@ def process_file():
 
         df_back = df.copy()
         df_back['ref_idw_paths'] = df_back['old_part'].map(get_ref_idw(df_back['old_part'].tolist()))
-        #print(df_back.to_string())
 
         to_idw_replace = dict(zip(df_back['Caminho'], df_back['ref_idw_paths']))
         execute_replace(to_idw_replace)
-
-
         return render_template('index.html', table_html=table_html, error="")
 
     except Exception as e:
         return render_template('index.html', table_html="", error=str(f'Permission Denied - {e}'))
 
+
+if hasattr(pythoncom, '__file__'):
+    print(pythoncom.__file__)
 
 if __name__ == '__main__':
     app.run(host='10.40.3.48', port=8001, debug=True)
