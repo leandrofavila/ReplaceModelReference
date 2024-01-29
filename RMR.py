@@ -3,6 +3,8 @@ import pandas as pd
 import win32com.client as win32
 import pythoncom
 import codecs
+import os
+import shutil
 
 
 app = Flask(__name__)
@@ -11,9 +13,12 @@ app = Flask(__name__)
 def get_part_number(files):
     pythoncom.CoInitialize()
     file_paths = get_path_selected_file(files)
+    if not file_paths:
+        return
     inv = win32.gencache.EnsureDispatch("Inventor.ApprenticeServer")
     part_number_df = []
     for path in file_paths.values():
+        print('esse', path)
         apprenticeDoc = inv.Open(path)
         oPropSets = apprenticeDoc.PropertySets
         PropertySet = oPropSets.Item("Design Tracking Properties")
@@ -30,7 +35,8 @@ def get_path_selected_file(file):
     for item in file:
         for line in caminhos:
             if ("\\" + (str(item))) in line:
-                local_paths[item] = line.rstrip()
+                local_paths[item] = line.rstrip() if line else 'Arquivo não encontrado nos caminhos'
+    #print('local_paths', local_paths)
     return local_paths
 
 
@@ -41,6 +47,7 @@ def get_ref_idw(old_file):
         for line in caminhos:
             if ("\\" + (str(item)) + '.idw') in line:
                 idw_paths[item] = line.rstrip()
+                #print(line.rstrip())
     return idw_paths
 
 
@@ -55,14 +62,34 @@ def get_old_part(file):
 
 def execute_replace(list_to_replace):
     inv = win32.gencache.EnsureDispatch("Inventor.ApprenticeServer")
+    status_dic = {}
     for key, value in list_to_replace.items():
-        if key and value:
-            idw = inv.Open(value)
-            idw.ReferencedDocumentDescriptors(1).ReferencedFileDescriptor.ReplaceReference(key)
-            inv.FileSaveAs.AddFileToSave(idw, (key[:-3] + "idw"))
-            inv.FileSaveAs.ExecuteSaveAs()
+        if isinstance(key, str) and isinstance(value, str):
+            if os.path.isabs(key) and os.path.isabs(value):
+                dasda = ''
+                try:
+                    name_key = key[:-3] + "idw"
+                    dasda = shutil.copy(value, os.path.join(os.path.dirname(key), os.path.basename(name_key)))
+                except IOError as io_err:
+                    print('erro ao COPIAR', io_err)
+                    status_dic[key] = 'Erro ao copiar arquivo.'
+                idw = inv.Open(dasda)
+                idw.ReferencedDocumentDescriptors(1).ReferencedFileDescriptor.ReplaceReference(key)
 
-
+                try:
+                    inv.FileSaveAs.AddFileToSave(idw, (key[:-3] + "idw"))
+                    inv.FileSaveAs.ExecuteSave()
+                    status_dic[key] = 'Salvo'
+                except Exception as err_:
+                    #print(f'Erro ao salvar {err_}')
+                    status_dic["status"] = f"Error: {err_}"
+            else:
+                #print('Arquivo não existe no diretorio - ', key)
+                status_dic[key] = 'Arquivo não existe no diretorio'
+                continue
+        else:
+            status_dic[key] = 'Não foi encontrado um IDW com dada referência.'
+    return status_dic
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -75,21 +102,32 @@ def process_file():
         for file in files:
             file_list.append(file.filename)
         df = get_part_number(file_list)
+
+        try:
+            ref_idw = get_ref_idw(df['old_part'].tolist())
+        except Exception as e:
+            print(e)
+            return render_template('index.html', table_html="", error=str('Arquvivo não encontrado.'))
+
+        df['ref_idw_paths'] = df['old_part'].map(ref_idw)
+        print(df.to_string())
+        to_idw_replace = dict(zip(df['Caminho'], df['ref_idw_paths']))
+        df['status'] = df['Caminho'].map(execute_replace(to_idw_replace))
         table_html = df.to_html(classes='table table-striped', justify='left', escape=False)
-
-        df_back = df.copy()
-        df_back['ref_idw_paths'] = df_back['old_part'].map(get_ref_idw(df_back['old_part'].tolist()))
-
-        to_idw_replace = dict(zip(df_back['Caminho'], df_back['ref_idw_paths']))
-        execute_replace(to_idw_replace)
         return render_template('index.html', table_html=table_html, error="")
 
     except Exception as e:
-        return render_template('index.html', table_html="", error=str(f'Permission Denied - {e}'))
+        return render_template('index.html', table_html="", error=str(e))
+
 
 
 if hasattr(pythoncom, '__file__'):
     print(pythoncom.__file__)
 
+
+
 if __name__ == '__main__':
-    app.run(host='10.40.3.48', port=8001, debug=True)
+    try:
+        app.run(host='0.0.0.0', port=8001, debug=True)
+    except Exception as err:
+        print(err)
