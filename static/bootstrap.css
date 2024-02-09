@@ -5,6 +5,15 @@
  * Copyright 2011-2021 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
  */
+
+ <style>
+    .table {
+        width: 100%; /* Define a largura da tabela como 100% da largura da tela */
+        table-layout: auto; /* Define o layout automático da tabela */
+        border-collapse: collapse; /* Colapse as bordas da tabela */
+    }
+</style>
+
 :root {
   --bs-blue: #0d6efd;
   --bs-indigo: #6610f2;

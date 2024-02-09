@@ -10,13 +10,11 @@
     <div style="padding: 20px; border: 1px solid #ccc; margin-bottom: 20px;">
         <h1>REPLACE MODEL REFERENCE</h1>
 
-        <form method="post" enctype="multipart/form-data" action="{{ url_for('process_file') }}">
-            <div>
-                <p>Selecione um ou varios arquivos ipt ou iam:</p>
+            <form action="/upload_and_process" method="post" enctype="multipart/form-data">
+                <label for="file">Selecione um ou vários arquivos ipt ou iam:</label>
                 <input type="file" name="file" multiple accept=".ipt, .iam" required>
-                <button type="submit">Enviar</button>
-            </div>
-        </form>
+                <button type="submit">Replace</button>
+            </form>
 
         {% if uploaded_file %}
             <p>Arquivo Selecionado: {{ uploaded_file.filename }}</p>
@@ -28,7 +26,9 @@
 
     </div>
 
-    {{ table_html|safe }}
+    <table class="table" id="tabela">
+        {{ table_html|safe }}
+    </table>
 
 </body>
 </html>
