@@ -1,0 +1,12 @@
+WARNING:werkzeug: * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+INFO:werkzeug: * Running on http://10.40.3.48:8001/ (Press CTRL+C to quit)
+WARNING:werkzeug: * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+INFO:werkzeug: * Running on http://10.40.3.48:8001/ (Press CTRL+C to quit)
+INFO:werkzeug:10.40.3.48 - - [08/Feb/2024 15:37:55] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:10.40.3.48 - - [08/Feb/2024 15:38:03] "POST /upload_and_process HTTP/1.1" 200 -
+INFO:werkzeug:10.40.3.48 - - [08/Feb/2024 15:38:11] "POST /upload_and_process HTTP/1.1" 200 -
+WARNING:werkzeug: * Running on all addresses.
+   WARNING: This is a development server. Do not use it in a production deployment.
+INFO:werkzeug: * Running on http://10.40.3.48:8001/ (Press CTRL+C to quit)

@@ -12,18 +12,19 @@ app = Flask(__name__)
 
 def get_part_number(file_paths):
     pythoncom.CoInitialize()
-
+    status_dic = {}
     inv = win32.gencache.EnsureDispatch("Inventor.ApprenticeServer")
     part_number_df = []
     for path in file_paths.values():
         full_path = get_path_selected_file(path)
         if not full_path:
-            return 'ipt não encontrado'
+            status_dic[path] = 'ipt não encontrado'
+            return status_dic
         apprenticeDoc = inv.Open(full_path)
         oPropSets = apprenticeDoc.PropertySets
         PropertySet = oPropSets.Item("Design Tracking Properties")
         part_number_df.append((PropertySet.Item(2).Value, get_path_selected_file(os.path.basename(path))))
-
+        apprenticeDoc.Close()
     part_number_df = pd.DataFrame(part_number_df, columns=['Part Number', 'Caminho'])
     old_parts = get_old_part(part_number_df['Part Number'].tolist())
     part_number_df['old_part'] = part_number_df['Part Number'].map(old_parts)
@@ -75,39 +76,26 @@ def execute_replace(list_to_replace):
                     status_dic[key] = 'Erro ao copiar arquivo.'
                     continue
 
-
                 rmr_no_dir = os.path.join(os.path.dirname(key) + "\\RMR.ipj")
                 #    os.remove(rmr_no_dir)
                 if not os.path.exists(rmr_no_dir):
                     ProjectNovo = inv.DesignProjectManager.DesignProjects.Add(36353, "RMR",
                                                                               os.path.join(os.path.dirname(key)))
                     ProjectNovo.Activate()
-
-
-
                 try:
-                    #print('idw = inv.Open(n_path)')
                     idw = inv.Open(n_path)
-                    #print('idw.ReferencedDocumentDescriptors(1).ReferencedFileDescriptor.ReplaceReference(key)')
                     idw.ReferencedDocumentDescriptors(1).ReferencedFileDescriptor.ReplaceReference(key)
                 except Exception as erro:
-                    #print(f"Erro no save {erro}")
+                    print(f"Erro no save {erro}")
                     status_dic[key] = 'Erro ao copiar arquivo.'
                     continue
-
-                    
                 try:
-                    #print('precisa atualizar?', idw.NeedsMigrating)
                     if idw.NeedsMigrating:
                         return 'Precisará migrar o arquivo antes.'
-
-                    #print('entrou no save')
                     inv.FileSaveAs.AddFileToSave(idw, (key[:-3] + "idw"))
-                    #print('inv.FileSaveAs.AddFileToSave(idw, (key[:-3] + "idw"))')
                     inv.FileSaveAs.ExecuteSave()
-                    #print('inv.FileSaveAs.ExecuteSave()')
                     status_dic[key] = 'Salvo'
-                    
+                    idw.Close()
                 except Exception as err_:
                     print(f'Erro ao salvar {err_}')
                     status_dic["status"] = "Erro ao salvar."
@@ -126,7 +114,6 @@ def index():
 @app.route('/upload_and_process', methods=['POST'])
 def upload_and_process():
     file_list = {}
-    #try:
     if 'file' not in request.files:
         return render_template('index.html', table_html="", error="")
     files = request.files.getlist('file')
@@ -134,12 +121,11 @@ def upload_and_process():
     for file in files:
         file_list[file] = file.filename
 
-    #print(file_list)
-
     df = get_part_number(file_list)
+
     try:
         ref_idw = get_ref_idw(df['old_part'].tolist())
-        #print(ref_idw)
+
     except Exception as e:
         print(e)
         return render_template('index.html', table_html="", error=df)
@@ -148,13 +134,9 @@ def upload_and_process():
     to_idw_replace = dict(zip(df['Caminho'], df['ref_idw_paths']))
 
     df['status'] = df['Caminho'].apply(lambda x: execute_replace({str(x): to_idw_replace[str(x)]})[str(x)])
-
-    #print(df.to_string())
     table_html = df.to_html(classes='table table-striped', justify='left', escape=False, render_links=True)
     return render_template('index.html', table_html=table_html, error="")
 
-    #except Exception as e:
-    #    return render_template('index.html', table_html="", error=str(e))
 
 
 if hasattr(pythoncom, '__file__'):
@@ -163,6 +145,6 @@ if hasattr(pythoncom, '__file__'):
 
 if __name__ == '__main__':
     try:
-        app.run(host='0.0.0.0', port=8011)
+        app.run(host='0.0.0.0', port=8001)
     except Exception as err:
         print(err)
