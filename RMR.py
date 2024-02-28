@@ -10,100 +10,90 @@ import shutil
 app = Flask(__name__)
 
 
-def get_part_number(file_paths):
+def get_part_number(full_path):
     pythoncom.CoInitialize()
-    status_dic = {}
-    inv = win32.gencache.EnsureDispatch("Inventor.ApprenticeServer")
-    part_number_df = []
-    for path in file_paths.values():
-        full_path = get_path_selected_file(path)
-        if not full_path:
-            status_dic[path] = 'ipt não encontrado'
-            return status_dic
+    # Recebe caminho do arquivo na rede vindo do txt
+    inv = apprentice()
+    try:
         apprenticeDoc = inv.Open(full_path)
         oPropSets = apprenticeDoc.PropertySets
         PropertySet = oPropSets.Item("Design Tracking Properties")
-        part_number_df.append((PropertySet.Item(2).Value, get_path_selected_file(os.path.basename(path))))
+        # Pega o part number do arquvio
+        part_number = PropertySet.Item(2).Value
         apprenticeDoc.Close()
-    part_number_df = pd.DataFrame(part_number_df, columns=['Part Number', 'Caminho'])
-    old_parts = get_old_part(part_number_df['Part Number'].tolist())
-    part_number_df['old_part'] = part_number_df['Part Number'].map(old_parts)
-    return part_number_df
+    except Exception as error_abrir_apprentice:
+        part_number = 'Inventor não abriu o arquivo'
+        print(error_abrir_apprentice)
+    return part_number
 
 
 def get_path_selected_file(file):
     caminhos = set(codecs.open(r"C:\Users\pcp03\Desktop\asd\kaminhos.txt", "r").readlines())
     for line in caminhos:
         if ("\\" + (str(file))) in line:
-            return line.rstrip().removeprefix('file://') if line else 'Arquivo não encontrado nos caminhos'
-
+            return line.rstrip().removeprefix('file://') if line else 'Caminho do arquivo não encontrado.'
 
 
 def get_ref_idw(old_file):
-    caminhos = set(codecs.open(r"C:\Users\pcp03\Desktop\asd\kaminhos.txt", "r").readlines())
-    idw_paths = {}
-    for item in old_file:
-        for line in caminhos:
-            if ("\\" + (str(item)) + '.idw') in line:
-                idw_paths[item] = line.rstrip().removeprefix('file://')
-    return idw_paths
+    caminhos = set(codecs.open(r"Z:\PCP\Leandro\kaminhos.txt", "r").readlines())
+    for line in caminhos:
+        if ("\\" + (str(old_file)) + '.idw') in line:
+            idw_paths = line.rstrip().removeprefix('file://')
+            return idw_paths
+    else:
+        return 'IDW de referência não encontrado.'
+
 
 
 def get_old_part(file):
-    old_part = {}
-    for val in file:
-        value = ''.join(cd for cd in val if cd.isdigit())
-        old_pt = value[-6:].replace('.', '').lstrip('0')
-        old_part[val] = old_pt if 5 <= len(str(old_pt)) <= 6 else 'Não é um código padrão'
+    value = ''.join(cd for cd in file if cd.isdigit())
+    old_pt = value[-6:].replace('.', '').lstrip('0')
+    old_part = old_pt if 5 <= len(str(old_pt)) <= 6 else 'Não é um código padrão'
     return old_part
 
 
-def execute_replace(list_to_replace):
-    inv = win32.gencache.EnsureDispatch("Inventor.ApprenticeServer")
-    status_dic = {}
-    for key, value in list_to_replace.items():
-        if isinstance(key, str) and isinstance(value, str):
-            if os.path.isabs(key) and os.path.isabs(value):
-                try:
-                    name_key = key[:-3] + "idw"
-                    if not os.path.exists(os.path.join(os.path.dirname(key), os.path.basename(name_key))):
-                        n_path = shutil.copy(value, os.path.join(os.path.dirname(key), os.path.basename(name_key)))
-                    else:
-                        status_dic[key] = 'Arquivo ja existe no destino.'
-                        return status_dic
-                except IOError as io_err:
-                    print('erro ao COPIAR', io_err)
-                    status_dic[key] = 'Erro ao copiar arquivo.'
-                    continue
-
-                rmr_no_dir = os.path.join(os.path.dirname(key) + "\\RMR.ipj")
-                #    os.remove(rmr_no_dir)
-                if not os.path.exists(rmr_no_dir):
-                    ProjectNovo = inv.DesignProjectManager.DesignProjects.Add(36353, "RMR",
-                                                                              os.path.join(os.path.dirname(key)))
-                    ProjectNovo.Activate()
-                try:
-                    idw = inv.Open(n_path)
-                    idw.ReferencedDocumentDescriptors(1).ReferencedFileDescriptor.ReplaceReference(key)
-                except Exception as erro:
-                    print(f"Erro no save {erro}")
-                    status_dic[key] = 'Erro ao copiar arquivo.'
-                    continue
-                try:
-                    if idw.NeedsMigrating:
-                        return 'Precisará migrar o arquivo antes.'
-                    inv.FileSaveAs.AddFileToSave(idw, (key[:-3] + "idw"))
-                    inv.FileSaveAs.ExecuteSave()
-                    status_dic[key] = 'Salvo'
-                    idw.Close()
-                except Exception as err_:
-                    print(f'Erro ao salvar {err_}')
-                    status_dic["status"] = "Erro ao salvar."
+def copy_to_new_dir(ref_idw, full_path):
+    if os.path.isabs(full_path):
+        try:
+            name_key = full_path[:-3] + "idw"
+            if not os.path.exists(os.path.join(os.path.dirname(full_path), os.path.basename(name_key))):
+                n_path = shutil.copy(ref_idw, os.path.join(os.path.dirname(full_path), os.path.basename(name_key)))
+                return n_path
             else:
-                status_dic[key] = 'Arquivo não existe no diretorio'
-        else:
-            status_dic[key] = 'Não foi encontrado um IDW com dada referência.'
-    return status_dic
+                return 'Arquvio ja existe no diretório'
+        except Exception as err_copy:
+            print(err_copy)
+            return 'Erro ao copiar'
+
+
+def create_ipj(full_path):
+    rmr_no_dir = os.path.join(os.path.dirname(full_path) + "\\RMR.ipj")
+    #    os.remove(rmr_no_dir)
+    #print('RMR', os.path.join(os.path.dirname(full_path) + "\\RMR.ipj"))
+    if not os.path.exists(rmr_no_dir):
+        inv = apprentice()
+        ProjectNovo = inv.DesignProjectManager.DesignProjects.Add(36353, "RMR",
+                                                                  os.path.join(os.path.dirname(full_path)))
+        ProjectNovo.Activate()
+
+
+def apprentice():
+    return win32.gencache.EnsureDispatch("Inventor.ApprenticeServer")
+
+
+def execute_replace(n_path, full_path):
+    try:
+        inv = apprentice()
+        idw = inv.Open(n_path)
+        idw.ReferencedDocumentDescriptors(1).ReferencedFileDescriptor.ReplaceReference(full_path)
+        inv.FileSaveAs.AddFileToSave(idw, n_path)
+        inv.FileSaveAs.ExecuteSave()
+        idw.Close()
+        return 'Salvo.'
+    except Exception as error_replace:
+        print(f"Erro no save {error_replace}")
+        return 'Erro ao aplicar o replace.'
+
 
 
 @app.route('/')
@@ -113,34 +103,51 @@ def index():
 
 @app.route('/upload_and_process', methods=['POST'])
 def upload_and_process():
-    file_list = {}
     if 'file' not in request.files:
         return render_template('index.html', table_html="", error="")
     files = request.files.getlist('file')
 
+    df = pd.DataFrame(columns=['Part Number', 'Caminho', 'Old Part', 'IDW Referência', 'Status'])
+
     for file in files:
-        file_list[file] = file.filename
+        df.loc[len(df)] = [None] * len(df.columns)
+        full_path = get_path_selected_file(file.filename)
 
-    df = get_part_number(file_list)
+        df.loc[len(df)-1, 'Caminho'] = full_path
+        if not full_path:
+            continue
 
-    try:
-        ref_idw = get_ref_idw(df['old_part'].tolist())
+        part_number = get_part_number(full_path)
+        df.loc[len(df)-1, 'Part Number'] = part_number
+        if not part_number or part_number == 'Inventor não abriu o arquivo':
+            continue
 
-    except Exception as e:
-        print(e)
-        return render_template('index.html', table_html="", error=df)
+        old_parts = get_old_part(part_number)
+        df.loc[len(df)-1, 'Old Part'] = old_parts
+        if not old_parts or old_parts == 'Não é um código padrão':
+            continue
 
-    df['ref_idw_paths'] = df['old_part'].map(ref_idw)
-    to_idw_replace = dict(zip(df['Caminho'], df['ref_idw_paths']))
+        ref_idw = get_ref_idw(old_parts)
+        df.loc[len(df)-1, 'IDW Referência'] = ref_idw
+        if not ref_idw or ref_idw == 'IDW de referência não encontrado.':
+            continue
 
-    df['status'] = df['Caminho'].apply(lambda x: execute_replace({str(x): to_idw_replace[str(x)]})[str(x)])
+        n_path = copy_to_new_dir(ref_idw, full_path)
+
+        create_ipj(full_path)
+
+        status = execute_replace(n_path, full_path)
+        print('status', status)
+        if status:
+            df.loc[len(df)-1, 'Status'] = status
+        else:
+            df.loc[len(df)-1, 'Status'] = n_path
+
+
+    df = df.sort_values(by=['Status']).reset_index(drop=True)
+    df.index = df.index + 1
     table_html = df.to_html(classes='table table-striped', justify='left', escape=False, render_links=True)
     return render_template('index.html', table_html=table_html, error="")
-
-
-
-if hasattr(pythoncom, '__file__'):
-    print(pythoncom.__file__)
 
 
 if __name__ == '__main__':
