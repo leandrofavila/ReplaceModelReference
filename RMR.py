@@ -11,9 +11,10 @@ app = Flask(__name__)
 
 
 def get_part_number(full_path):
+    print('get_part_number')
     pythoncom.CoInitialize()
     # Recebe caminho do arquivo na rede vindo do txt
-    inv = apprentice()
+    inv = win32.gencache.EnsureDispatch("Inventor.ApprenticeServer")
     try:
         apprenticeDoc = inv.Open(full_path)
         oPropSets = apprenticeDoc.PropertySets
@@ -28,13 +29,15 @@ def get_part_number(full_path):
 
 
 def get_path_selected_file(file):
-    caminhos = set(codecs.open(r"C:\Users\pcp03\Desktop\asd\kaminhos.txt", "r").readlines())
+    print('get_path_selected_file')
+    caminhos = set(codecs.open(r"Z:\PCP\Leandro\kaminhos.txt", "r").readlines())
     for line in caminhos:
         if ("\\" + (str(file))) in line:
             return line.rstrip().removeprefix('file://') if line else 'Caminho do arquivo não encontrado.'
 
 
 def get_ref_idw(old_file):
+    print('get_ref_idw')
     caminhos = set(codecs.open(r"Z:\PCP\Leandro\kaminhos.txt", "r").readlines())
     for line in caminhos:
         if ("\\" + (str(old_file)) + '.idw') in line:
@@ -46,6 +49,7 @@ def get_ref_idw(old_file):
 
 
 def get_old_part(file):
+    print('get_old_part')
     value = ''.join(cd for cd in file if cd.isdigit())
     old_pt = value[-6:].replace('.', '').lstrip('0')
     old_part = old_pt if 5 <= len(str(old_pt)) <= 6 else 'Não é um código padrão'
@@ -53,6 +57,7 @@ def get_old_part(file):
 
 
 def copy_to_new_dir(ref_idw, full_path):
+    print('copy_to_new_dir')
     if os.path.isabs(full_path):
         try:
             name_key = full_path[:-3] + "idw"
@@ -67,23 +72,20 @@ def copy_to_new_dir(ref_idw, full_path):
 
 
 def create_ipj(full_path):
+    print('create_ipj')
     rmr_no_dir = os.path.join(os.path.dirname(full_path) + "\\RMR.ipj")
-    #    os.remove(rmr_no_dir)
-    #print('RMR', os.path.join(os.path.dirname(full_path) + "\\RMR.ipj"))
     if not os.path.exists(rmr_no_dir):
-        inv = apprentice()
+        inv = win32.gencache.EnsureDispatch("Inventor.ApprenticeServer")
         ProjectNovo = inv.DesignProjectManager.DesignProjects.Add(36353, "RMR",
                                                                   os.path.join(os.path.dirname(full_path)))
         ProjectNovo.Activate()
 
 
-def apprentice():
-    return win32.gencache.EnsureDispatch("Inventor.ApprenticeServer")
-
 
 def execute_replace(n_path, full_path):
+    print('execute_replace')
     try:
-        inv = apprentice()
+        inv = win32.gencache.EnsureDispatch("Inventor.ApprenticeServer")
         idw = inv.Open(n_path)
         idw.ReferencedDocumentDescriptors(1).ReferencedFileDescriptor.ReplaceReference(full_path)
         inv.FileSaveAs.AddFileToSave(idw, n_path)
@@ -103,6 +105,7 @@ def index():
 
 @app.route('/upload_and_process', methods=['POST'])
 def upload_and_process():
+    print('upload_and_process')
     if 'file' not in request.files:
         return render_template('index.html', table_html="", error="")
     files = request.files.getlist('file')
@@ -112,7 +115,6 @@ def upload_and_process():
     for file in files:
         df.loc[len(df)] = [None] * len(df.columns)
         full_path = get_path_selected_file(file.filename)
-
         df.loc[len(df)-1, 'Caminho'] = full_path
         if not full_path:
             continue
